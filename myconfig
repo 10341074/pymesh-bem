@@ -1,0 +1,9 @@
+export PATH=$PATH:$PWD
+export PATH=$PATH:$PWD/PyMesh/
+export PATH=$PATH:$PWD/pack/
+export PATH=$PATH:$PWD/../venv/
+export PATH=$PATH:$PWD/../venv/src/
+export PYTHONPATH=$PATH
+
+. bin/activate
+
