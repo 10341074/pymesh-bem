@@ -7,6 +7,9 @@ import layerpot as ly
 import shapes as sh
 import segment as sg
 import directlinsys as dls
+import plot
+import data
+
 
 def mean(a, b):
   return 0.5 * (a + b)
@@ -134,24 +137,26 @@ class Mesh2d:
     elif qfe == 'qf2pE':
       self.qf2pE = QF(self, 'qf2pE')
     return
-  def lhDirectInit(self, g=g_p_cube, signb = -1, datan=True, datad=False, build=True, qfe=(), k=0):
-    self.lh_g, self.lh_signb, self.lh_datan, self.lh_datad = g, signb, datan, datad
+  def lhDirectInit(self, g=g_p_cube, g_c = g_cube, gn = (), signb = -1, datan=True, datad=False, build=True, qfe=(), k=0):
+    self.lh_g, self.lh_g_c, self.lh_gn, self.lh_signb, self.lh_datan, self.lh_datad, self.k = g, g_c, gn, signb, datan, datad, k
     if build and datan:
       self.lhDirectInitN(qfe, k)
     if build and datad:
       self.lhDirectInitD(qfe, k)
   def lhDirectInitN(self, qfe=(), k=0):
-    if qfe == ():
-      qfe = 'qf1pElump'
-    if qfe == 'qf1pElump':
-      sqf = self.qf1pElump
-    elif qfe == 'qf1pE':
-      sqf = self.qf1pE
     # M = collocation nodes = fem basis = s.n
     # N = quadrature nodes = qfe.n
     # A kernel = layerpot = M * N
     # gh = M
     # W weights integration = N * M
+    ########################################################
+    if qfe == ():
+      qfe = 'qf1pElump' # allows to pass () and set as default
+    if qfe == 'qf1pElump':
+      sqf = self.qf1pElump
+    elif qfe == 'qf1pE':
+      sqf = self.qf1pE
+    #####################
     if qfe == 'qf1pElump':
       # slf = True
       self.A = ly.layerpotSD(k=k, s=sqf)
@@ -160,24 +165,71 @@ class Mesh2d:
       # slf = False
       self.A = ly.layerpotSD(k=k, s=sqf, t=self.s)
       # self.A = ly.layerpotSD(k=k, s=self.s.x, t=qfe.x)
-    self.gh = ly.scalar(self.lh_g(self.s.x), self.s.nx)
+    #######################
     if qfe == 'qf1pElump':
       self.W = np.eye(sqf.n)
     if qfe == 'qf1pE':
       self.W = 0.5 * np.eye(self.s.n) + 0.5 * np.eye(self.s.n, k=1) + 0.5 * np.eye(self.s.n, k=self.s.n - 1)
-    print(self.W)
+    ##################### gh
+    if self.lh_gn == ():
+      self.gh = ly.scalar(self.lh_g(self.s.x), self.s.nx)
+    else:
+      self.gh = self.lh_gn(self.s.x)
     self.A = self.A.dot(self.W)
-    self.A = self.A + 0.5 * np.eye(sqf.n)
-    self.k = k
+    self.A = self.A + (-self.lh_signb) * 0.5 * np.eye(sqf.n)
     return
+  def lhDirectInitD(self, qfe=(), k=0):
+    if qfe == ():
+      qfe = 'qf1pElump' # allows to pass () and set as default
+    if qfe == 'qf1pElump':
+      sqf = self.qf1pElump
+    # self.A = ly.layerpotD_L1L2(k=k, s=sqf, derivSLP=False)
+    self.A = ly.layerpotD(k=k, s=sqf)
+    if self.lh_gn == ():
+      self.gh = ly.scalar(self.lh_g(self.s.x), self.s.nx)
+    else:
+      self.gh = self.lh_gn(self.s.x)
+    # self.A = self.A.dot(self.W)
+    self.A = self.A + (self.lh_signb) * 0.5 * np.eye(sqf.n)
+    return
+  def lhDirectInitScatt(self, qfe=(), k=0):
+    if qfe == ():
+      qfe = 'qf1pElump' # allows to pass () and set as default
+    if qfe == 'qf1pElump':
+      sqf = self.qf1pElump
+    # self.A = ly.layerpotD_L1L2(k=k, s=sqf, derivSLP=False)
+    self.A = ly.layerpotD_L1L2(k=k, s=sqf) - 1j * ly.layerpotS_M1M2(k=k, s=sqf)
+    if self.lh_gn == ():
+      self.gh = - ly.scalar(self.lh_g(self.s.x), self.s.nx)
+    else:
+      self.gh = - self.lh_gn(self.s.x)
+    # self.A = self.A.dot(self.W)
+    self.A = self.A + (self.lh_signb) * 0.5 * np.eye(sqf.n)
+    return
+  def representN(self, k, s, t=()):
+    return ly.layerpotS(k=k, s=s, t=t)
+  def representD(self, k, s, t=()):
+    return ly.layerpotD(k=k, s=s, t=t)
   def lhDirectSolve(self):
-    self.psi = dls.linsys_0(self.A, self.gh)
-    # self.psi = linalg.solve(self.A, self.gh)
+    # self.psi = dls.linsys_0(self.A, self.gh)
+    self.psi = linalg.solve(self.A, self.gh)
   def plot_sol(self):
-    self.sol_b = ly.layerpotS(k=self.k, s=self.s).dot(self.psi)
-    plt.plot(self.s.t, g_cube(self.s.x), '+-')
+    if self.lh_datan:
+      R = self.representN(k=self.k, s=self.s)
+    if self.lh_datad:
+      R = self.representD(k=self.k, s=self.s) - 0.5 * np.eye(self.s.n)
+    self.sol_b = R.dot(self.psi)
+    plt.plot(self.s.t, self.lh_g_c(self.s.x), '+-')
     plt.plot(self.s.t, self.sol_b,'+-')
     plt.show(block=False)
+  def plot_sol_2(self, side=1):
+    if self.lh_datan:
+      R = self.representN(k=self.k, s=self.s, t=self.mp)
+    if self.lh_datad:
+      R = self.representD(k=self.k, s=self.s, t=self.mp)
+    self.z = R.dot(self.psi)
+    self.plot(side=side)
+    
   ##############################################################
   def meshgrid(self, args=(-3, 3, 80), args_y=((), (), ())):
     # meshgrid computes x, y, pp(points plot), p(points computation) (pp is p by default)
@@ -185,41 +237,73 @@ class Mesh2d:
       args = self.meshgrid_args
     else:
       self.meshgrid_args = args
-    self.mx, self.my, self.mp = ipb.meshgrid(args, args_y)
-  #   self.importp()
-  # def importp(self, s=()):
-  #   self.mp = self.pnt
-  #   if s == ():
-  #     s = self.so
-    for k in range(len(self.p.x)):
-      self.p.flag_inside_s[k] = s.contains(self.p.x[k])
-  def plot_pre(self, default_value = 0):
-    for k in range(len(self.p.x)):
-      if self.p.flag_inside_s[k] == 0:
-        self.z[k] = default_value
-  def plot(self, z=(), t='im'):
+    self.mx, self.my, meshp = plot.meshgrid(args, args_y)
+    self.mp = sg.Pointset(meshp)
+    for k in range(len(self.mp.x)):
+      self.mp.flag_inside_s[k] = self.s.contains(self.mp.x[k])
+  def plot_pre(self, default_value = 0, side=1): # side is vanishing side
+    for k in range(len(self.mp.x)):
+      if side == 1:
+        if self.mp.flag_inside_s[k] == 0:
+          self.z[k] = default_value
+      elif side == -1:
+        if self.mp.flag_inside_s[k] == 1:
+          self.z[k] = default_value
+    return
+  def plot(self, z=(), t='im', side=1):
     if z == ():
       z = self.z
-    self.plot_pre()
-    fig = plot.plot(self.x, self.y, z, t)
-    self.plot_domain()
+    self.plot_pre(side=side)
+    fig = plot.plot(self.mx, self.my, z, t)
+    # self.plot_domain()
     plt.show(block=False)
 
 def fast():
-   m = Mesh2d("one_ellipse_2_1")
-   m.addQF(qfe='qf1pE')
-   m.lhDirectInit()
-   m.lhDirectSolve()
-   m.plot_sol()
-   return m
+  m = Mesh2d("one_ellipse_2_1")
+  m.addQF(qfe='qf1pE')
+  m.lhDirectInit()
+  m.lhDirectSolve()
+  m.plot_sol()
+  return m
   
 
+
+
+def neum_int(m):
+  ####################### 1  
+  m.lhDirectInit(g = data.g_p_l_neum_int, g_c = data.g_l_neum_int, signb = -1, k=0)
+  m.lhDirectSolve()
+  # m.plot_sol()
+  ###################### 2
+  m.lhDirectInit(g = data.g_p_l_neum_ext, g_c = data.g_l_neum_ext, gn = data.g_p_l_neum_ext_circle_1, signb = 1, k=0)
+  m.lhDirectSolve()
+  # m.plot_sol()
+  m.meshgrid()
+  # m.plot_sol_2(side=0)
+  ###################### 3 dirichlet int # gn
+  m.lhDirectInit(g = data.g_l_neum_int, g_c = data.g_l_neum_int, gn = data.g_l_neum_int, datan=False, datad=True, signb = -1, k=0)
+  m.lhDirectSolve()
+  # m.plot_sol()
+  ###################### 4 scattering (dirichlet) # gn
+  m.lhDirectInit(g = data.g_l_neum_int, g_c = data.g_l_neum_int, gn = data.g_l_neum_int, datan=False, datad=True, signb = -1, k=0)
+  m.lhDirectSolve()
+  # m.plot_sol()
+
+  # m.z = data.g_l_neum_ext(m.mp.x)
+  # m.plot()
+  # m.lhDirectInit(g = data.g_p_l_neum_ext, g_c = data.g_l_neum_ext, gn = data.g_p_l_neum_ext_circle_1, signb = 1, k=0)
+  # m.lhDirectSolve()
+  # m.plot_sol()
+  ret = input("Press")
+  
 if __name__ == "__main__":
-   m = Mesh2d()
-   m.addQF()
-   m.addQF(qfe='qf1pE')
-   m.lhDirectInit()
-   m.lhDirectSolve()
-   m.plot_sol()
-   pymesh.save_mesh("filename.msh", m.mesh)
-   ret = input("Press")
+  m = Mesh2d()
+  m.addQF()
+  m.addQF(qfe='qf1pE')
+  m.addQF(qfe='qf2pE')
+  neum_int(m)
+  # m.lhDirectInit()
+  # m.lhDirectSolve()
+  # m.plot_sol()
+  pymesh.save_mesh("filename.msh", m.mesh)
+  ret = input("Press")
