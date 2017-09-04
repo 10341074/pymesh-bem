@@ -9,6 +9,7 @@ import segment as sg
 import directlinsys as dls
 import plot
 import data
+import refined
 
 import scipy.linalg as linalg
 import scipy.special as ssp # hankel1

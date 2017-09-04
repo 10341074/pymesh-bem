@@ -1,5 +1,12 @@
 import numpy as np
 
+import shapes as sh
+import segment as sg
+
+def sFun(n):
+  return sg.Segment(n, f_inargs=(sh.circle, (0, 1)), quad='p')
+
+#######################à
 def g_l_neum_int(z):
   x, y = z.real, z.imag
   return 1.0 / 6 * (x**3 - 3 * x * y**2) # - 2 / np.pi 
@@ -23,6 +30,6 @@ def g_p_l_neum_ext_circle_1(z):
   return 0.5 * np.cos(3 * theta)
 #########################################
 def g_scatt_inc_plane(z, k):
-  x, y = z.real, z,imag
+  x, y = z.real, z.imag
   a = np.pi/4
   return np.exp(-1j * k *(np.cos(a) * x + np.sin(a) * y))

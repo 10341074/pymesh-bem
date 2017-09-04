@@ -137,12 +137,14 @@ class Mesh2d:
     elif qfe == 'qf2pE':
       self.qf2pE = QF(self, 'qf2pE')
     return
-  def lhDirectInit(self, g=g_p_cube, g_c = g_cube, gn = (), signb = -1, datan=True, datad=False, build=True, qfe=(), k=0):
-    self.lh_g, self.lh_g_c, self.lh_gn, self.lh_signb, self.lh_datan, self.lh_datad, self.k = g, g_c, gn, signb, datan, datad, k
-    if build and datan:
+  def lhDirectInit(self, g=g_p_cube, g_c = g_cube, gn = (), signb = -1, datab = 'n', build=True, qfe=(), k=0):
+    self.lh_g, self.lh_g_c, self.lh_gn, self.lh_signb, self.lh_datab, self.k = g, g_c, gn, signb, datab, k
+    if build and datab == 'n':
       self.lhDirectInitN(qfe, k)
-    if build and datad:
+    if build and datab == 'd':
       self.lhDirectInitD(qfe, k)
+    if build and datab == 'scatt':
+      self.lhDirectInitScatt(qfe, k)
   def lhDirectInitN(self, qfe=(), k=0):
     # M = collocation nodes = fem basis = s.n
     # N = quadrature nodes = qfe.n
@@ -202,7 +204,8 @@ class Mesh2d:
     if self.lh_gn == ():
       self.gh = - ly.scalar(self.lh_g(self.s.x), self.s.nx)
     else:
-      self.gh = - self.lh_gn(self.s.x)
+      print('used gn', k)
+      self.gh = - self.lh_gn(self.s.x, k=k)
     # self.A = self.A.dot(self.W)
     self.A = self.A + (self.lh_signb) * 0.5 * np.eye(sqf.n)
     return
@@ -210,23 +213,36 @@ class Mesh2d:
     return ly.layerpotS(k=k, s=s, t=t)
   def representD(self, k, s, t=()):
     return ly.layerpotD(k=k, s=s, t=t)
+  def representScatt(self, k, s, t=()):
+    return ly.layerpotD_L1L2(k=k, s=s, t=t) - 1j * ly.layerpotS_M1M2(k=k, s=s, t=t)
   def lhDirectSolve(self):
-    # self.psi = dls.linsys_0(self.A, self.gh)
-    self.psi = linalg.solve(self.A, self.gh)
-  def plot_sol(self):
-    if self.lh_datan:
+    if self.lh_datab == 'n':
+      self.psi = dls.linsys_0(self.A, self.gh)
+    else:
+      self.psi = linalg.solve(self.A, self.gh)
+  def comp_sol(self):
+    if self.lh_datab == 'n':
       R = self.representN(k=self.k, s=self.s)
-    if self.lh_datad:
+    if self.lh_datab == 'd':
       R = self.representD(k=self.k, s=self.s) - 0.5 * np.eye(self.s.n)
+    if self.lh_datab == 'scatt':
+      R = self.representScatt(k=self.k, s=self.s) + 0.5 * np.eye(self.s.n)
     self.sol_b = R.dot(self.psi)
-    plt.plot(self.s.t, self.lh_g_c(self.s.x), '+-')
+  def plot_sol(self):
+    self.comp_sol()
+    if self.lh_datab == 'scatt':
+      plt.plot(self.s.t, self.lh_g_c(self.s.x, k=self.k), '+-')
+    else:
+      plt.plot(self.s.t, self.lh_g_c(self.s.x), '+-')
     plt.plot(self.s.t, self.sol_b,'+-')
     plt.show(block=False)
   def plot_sol_2(self, side=1):
-    if self.lh_datan:
+    if self.lh_datab == 'n':
       R = self.representN(k=self.k, s=self.s, t=self.mp)
-    if self.lh_datad:
+    if self.lh_datab == 'd':
       R = self.representD(k=self.k, s=self.s, t=self.mp)
+    if self.lh_datab == 'scatt':
+      R = self.representScatt(k=self.k, s=self.s, t=self.mp)
     self.z = R.dot(self.psi)
     self.plot(side=side)
     
@@ -266,6 +282,10 @@ def fast():
   m.plot_sol()
   return m
   
+def fast_2():
+  m = Mesh2d()
+  neum_int(m)
+  return m
 
 
 
@@ -281,13 +301,14 @@ def neum_int(m):
   m.meshgrid()
   # m.plot_sol_2(side=0)
   ###################### 3 dirichlet int # gn
-  m.lhDirectInit(g = data.g_l_neum_int, g_c = data.g_l_neum_int, gn = data.g_l_neum_int, datan=False, datad=True, signb = -1, k=0)
+  m.lhDirectInit(g = data.g_l_neum_int, g_c = data.g_l_neum_int, gn = data.g_l_neum_int, datab = 'd', signb = -1, k=0)
   m.lhDirectSolve()
   # m.plot_sol()
   ###################### 4 scattering (dirichlet) # gn
-  m.lhDirectInit(g = data.g_l_neum_int, g_c = data.g_l_neum_int, gn = data.g_l_neum_int, datan=False, datad=True, signb = -1, k=0)
+  m.lhDirectInit(g = data.g_l_neum_int, g_c = data.g_scatt_inc_plane, gn = data.g_scatt_inc_plane, datab = 'scatt', signb = 1, k=10)
   m.lhDirectSolve()
-  # m.plot_sol()
+  m.plot_sol()
+  m.plot_sol_2(side=0)
 
   # m.z = data.g_l_neum_ext(m.mp.x)
   # m.plot()

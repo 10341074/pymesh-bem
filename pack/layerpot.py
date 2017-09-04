@@ -157,7 +157,7 @@ def layerpotS_M1M2(k=0, s=(), t=(), o=(), nodiag=0):
     if k == 0: # laplace
       M1 = -1. / 4 / pi # const M_1/2 of Kress w/out speed fac
       # A = A - S1 * circulant_T(log(4. * sin(pi / N * np.arange(N))**2 )) # A=D2=M_2/2
-      M2 = A - S1 * circulant_T(np.concatenate(( [0], log(4. * sin(pi / N * np.arange(1,N))**2 ) )) ) # A=D2=M_2/2
+      M2 = A - M1 * circulant_T(np.concatenate(( [0], log(4. * sin(pi / N * np.arange(1,N))**2 ) )) ) # A=D2=M_2/2
       M2[np.diag_indices(N)] = -log(sp) / 2 / pi # diag vals propto curvature?
     else: # helmoltz
       # S1 = triu(besselj(0,k*triu(r,1)),1);  % use symmetry (arg=0 is fast)
