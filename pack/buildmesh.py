@@ -218,25 +218,30 @@ class Mesh2d:
   def lhDirectSolve(self):
     if self.lh_datab == 'n':
       self.psi = dls.linsys_0(self.A, self.gh)
+      # self.psi = linalg.solve(self.A, self.gh)
     else:
       self.psi = linalg.solve(self.A, self.gh)
   def comp_sol(self):
     if self.lh_datab == 'n':
       R = self.representN(k=self.k, s=self.s)
     if self.lh_datab == 'd':
-      R = self.representD(k=self.k, s=self.s) - 0.5 * np.eye(self.s.n)
+      R = self.representD(k=self.k, s=self.s) + self.lh_signb * 0.5 * np.eye(self.s.n)
+      # R = self.representD(k=self.k, s=self.s) - 0.5 * np.eye(self.s.n)
     if self.lh_datab == 'scatt':
       R = self.representScatt(k=self.k, s=self.s) + 0.5 * np.eye(self.s.n)
     self.sol_b = R.dot(self.psi)
+    # zero mean
+    if self.lh_datab == 'n':
+      self.sol_b = self.sol_b - sum((self.s.w * self.sol_b)) / sum(self.s.w)
   def plot_sol(self):
     self.comp_sol()
     if self.lh_datab == 'scatt':
       plt.plot(self.s.t, self.lh_g_c(self.s.x, k=self.k), '+-')
     else:
-      plt.plot(self.s.t, self.lh_g_c(self.s.x), '+-')
+      plt.plot(self.s.t, self.lh_g_c(self.s.x, s=self.s), '+-')
     plt.plot(self.s.t, self.sol_b,'+-')
     plt.show(block=False)
-  def plot_sol_2(self, side=1):
+  def plot_sol_2(self, side=1, t='im'):
     if self.lh_datab == 'n':
       R = self.representN(k=self.k, s=self.s, t=self.mp)
     if self.lh_datab == 'd':
@@ -244,7 +249,7 @@ class Mesh2d:
     if self.lh_datab == 'scatt':
       R = self.representScatt(k=self.k, s=self.s, t=self.mp)
     self.z = R.dot(self.psi)
-    self.plot(side=side)
+    self.plot(side=side, t=t)
     
   ##############################################################
   def meshgrid(self, args=(-3, 3, 80), args_y=((), (), ())):
