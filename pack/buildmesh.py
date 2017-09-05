@@ -187,10 +187,10 @@ class Mesh2d:
       sqf = self.qf1pElump
     # self.A = ly.layerpotD_L1L2(k=k, s=sqf, derivSLP=False)
     self.A = ly.layerpotD(k=k, s=sqf)
-    if self.lh_gn == ():
-      self.gh = ly.scalar(self.lh_g(self.s.x), self.s.nx)
-    else:
-      self.gh = self.lh_gn(self.s.x)
+    # if self.lh_gn == ():
+    #   self.gh = ly.scalar(self.lh_g(self.s.x), self.s.nx)
+    # else:
+    self.gh = self.lh_g(self.s.x)
     # self.A = self.A.dot(self.W)
     self.A = self.A + (self.lh_signb) * 0.5 * np.eye(sqf.n)
     return
@@ -216,11 +216,12 @@ class Mesh2d:
   def representScatt(self, k, s, t=()):
     return ly.layerpotD_L1L2(k=k, s=s, t=t) - 1j * ly.layerpotS_M1M2(k=k, s=s, t=t)
   def lhDirectSolve(self):
-    if self.lh_datab == 'n':
+    if (self.lh_datab == 'n' and self.lh_signb == -1) or (self.lh_datab == 'd' and self.lh_signb == 1):
       self.psi = dls.linsys_0(self.A, self.gh)
       # self.psi = linalg.solve(self.A, self.gh)
     else:
-      self.psi = linalg.solve(self.A, self.gh)
+      # self.psi = linalg.solve(self.A, self.gh) 
+      self.psi = dls.linsys_0(self.A, self.gh)
   def comp_sol(self):
     if self.lh_datab == 'n':
       R = self.representN(k=self.k, s=self.s)
@@ -233,15 +234,16 @@ class Mesh2d:
     # zero mean
     if self.lh_datab == 'n':
       self.sol_b = self.sol_b - sum((self.s.w * self.sol_b)) / sum(self.s.w)
-  def plot_sol(self):
-    self.comp_sol()
+  def plot_sol(self, comp=True):
+    if comp:
+      self.comp_sol()
     if self.lh_datab == 'scatt':
       plt.plot(self.s.t, self.lh_g_c(self.s.x, k=self.k), '+-')
     else:
       plt.plot(self.s.t, self.lh_g_c(self.s.x, s=self.s), '+-')
     plt.plot(self.s.t, self.sol_b,'+-')
     plt.show(block=False)
-  def plot_sol_2(self, side=1, t='im'):
+  def comp_sol_2(self, side=1, t='im'):
     if self.lh_datab == 'n':
       R = self.representN(k=self.k, s=self.s, t=self.mp)
     if self.lh_datab == 'd':
@@ -249,6 +251,9 @@ class Mesh2d:
     if self.lh_datab == 'scatt':
       R = self.representScatt(k=self.k, s=self.s, t=self.mp)
     self.z = R.dot(self.psi)
+  def plot_sol_2(self, side=1, t='im', comp=True):
+    if comp:
+      self.comp_sol_2(side, t)
     self.plot(side=side, t=t)
     
   ##############################################################
