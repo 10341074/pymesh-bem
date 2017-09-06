@@ -15,11 +15,11 @@ def mean(a, b):
   return 0.5 * (a + b)
 def mean_t(a,b,t):
   return a + t * (b - a)
-def g_cube(z, k=0):
+def g_cube(z, k=0, s=()):
   x, y = z.real, z.imag
   if k == 0:
     return x**3 - 3 * x * y**2
-def g_p_cube(z, k=0):
+def g_p_cube(z, k=0, s=()):
   x, y = z.real, z.imag
   if k == 0:
     return (3 * x**2 - 3 * y**2) - 1j * (6 * x * y)

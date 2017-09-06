@@ -177,7 +177,7 @@ if __name__ == "__main__":
   # m.plot(side= -1, t='cf')
   # m.s.plot(ms = 0, lw = 0.8, ls = ':')
   ##################################
-  if False:
+  if makeall:
     m = bm.Mesh2d()
     errorConvergence(numb=1, sFun=data.sOneCircle, name="lap_neum_int_circle")
     errorConvergence(numb=2, sFun=data.sOneCircle, name="lap_neum_ext_circle")
