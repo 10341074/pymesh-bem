@@ -37,8 +37,21 @@ class QF():
         np.sqrt((m.xh[k1] - m.xh[k2])**2 + (m.yh[k1] - m.yh[k2])**2)
         for k1, k2 in zip(m.indb, np.roll(m.indb, -1))
       ])
+      tempnh = np.array([
+        m.yh[k2] - m.yh[k1] - 1j * (m.xh[k2] - m.xh[k1])
+        for k1, k2 in zip(m.indb, np.roll(m.indb, -1))
+      ])
+      self.nh = np.array([
+        nk / abs(nk)
+        for nk in tempnh
+      ])      
       # 2. exact quadrature from m.s
       self.t = np.array([mean(tk1, tk2) for tk1, tk2 in zip(m.s.t, np.concatenate((m.s.t[1:], [1])) )])
+      #
+      self.zqh = sg.Pointset(self.zh[:,0] + 1j * self.zh[:,1])
+      self.zqh.nx = self.nh
+      self.zch = sg.Pointset(m.s.x)
+      self.zch.nx = m.s.nx
     ##################################
     if qf == 'qf1pElump':
       # 1. mesh quadrature
@@ -53,9 +66,15 @@ class QF():
       self.wh = np.array([
         mean(wk1, wk2)
         for wk1, wk2 in zip(tempwh, np.roll(tempwh, 1))
-      ])      
+      ])
+      self.nh = np.array(m.s.nx)
       # 2. exact quadrature from m.s 
       self.t = np.array(m.s.t)
+      #
+      # self.zqh = sg.Pointset(sqf.zh[:,0] + 1j * sqf.zh[:,1])
+      # self.zqh.nx = self.nh
+      # self.zch = sg.Pointset(m.s.x)
+      # self.zch.nx = m.s.nx
     ##################################
     if qf == 'qf2pE':
       # 1. mesh quadrature
@@ -73,7 +92,15 @@ class QF():
       ])
       self.wh = np.array([])
       for wk in tempwh:
-        self.wh = np.concatenate(( self.wh, [wk], [wk] ))        
+        self.wh = np.concatenate(( self.wh, [wk/2], [wk/2] ))
+      tempnh = np.array([
+        m.yh[k2] - m.yh[k1] - 1j * (m.xh[k2] - m.xh[k1])
+        for k1, k2 in zip(m.indb, np.roll(m.indb, -1))
+      ])
+      self.nh = np.array([])
+      for nk in tempnh:
+        self.nh = np.concatenate(( self.nh, [nk/abs(nk)], [nk/abs(nk)] ))
+
       # 2. exact quadrature from m.s
       self.t = np.array([])
       for tk1, tk2 in zip(m.s.t, np.concatenate((m.s.t[1:], [1])) ):
@@ -81,6 +108,24 @@ class QF():
           [mean_t(tk1, tk2, (1-np.sqrt(1/3))/2)],
           [mean_t(tk1, tk2, (1+np.sqrt(1/3))/2)]
         ))
+      #
+      self.zqh = sg.Pointset(self.zh[:,0] + 1j * self.zh[:,1])
+      self.zqh.nx = self.nh
+      tempzchx = np.array([])
+      for k1, k2 in zip(m.s.x, np.roll(m.s.x, -1)):
+        tempzchx = np.concatenate(( tempzchx, [k1], [mean(k1, k2)] ))
+      self.zch = sg.Pointset(tempzchx)
+      tempzchn = np.array(self.nh)
+      for k in range(m.s.nx.size):
+        tempzchn[2*k] = m.s.nx[k]      
+      self.zch.nx = tempzchn
+      #plot
+      tempzchk = np.array([])
+      for k1, k2 in zip(m.s.kappa, np.roll(m.s.kappa, -1)):
+        tempzchk = np.concatenate(( tempzchk, [k1], [mean(k1, k2)] ))
+      self.zch.kappa = tempzchk
+      self.zch.speed = self.wh * self.wh.size
+      self.zch.w = self.wh
     ##################################
     (Z, Zp, Zpp, args) = m.f(*m.inargs)
     self.n = self.t.size
@@ -185,14 +230,54 @@ class Mesh2d:
       qfe = 'qf1pElump' # allows to pass () and set as default
     if qfe == 'qf1pElump':
       sqf = self.qf1pElump
-    # self.A = ly.layerpotD_L1L2(k=k, s=sqf, derivSLP=False)
-    self.A = ly.layerpotD(k=k, s=sqf)
+    ################################
+    if qfe == 'qf1pElump':
+      # self.A = ly.layerpotD_L1L2(k=k, s=sqf, derivSLP=False)
+      self.A = ly.layerpotD(k=k, s=sqf)
+    #################################
     # if self.lh_gn == ():
     #   self.gh = ly.scalar(self.lh_g(self.s.x), self.s.nx)
     # else:
     self.gh = self.lh_g(self.s.x)
     # self.A = self.A.dot(self.W)
     self.A = self.A + (self.lh_signb) * 0.5 * np.eye(sqf.n)
+    return
+  def lhHDirectInitD(self, qfe=(), k=0): # discrete domain
+    # M = collocation nodes = fem basis = s.n
+    # N = quadrature nodes = qfe.n
+    # A kernel = layerpot = M * N
+    # gh = M
+    # W weights integration = N * M
+    if qfe == ():
+      qfe = 'qf1pElump' # allows to pass () and set as default
+    if qfe == 'qf1pElump':
+      sqf = self.qf1pElump
+    elif qfe == 'qf1pE':
+      sqf = self.qf1pE
+    elif qfe == 'qf2pE':
+      sqf = self.qf2pE
+    ################################
+    self.ph = sg.Pointset(sqf.zh[:,0] + 1j * sqf.zh[:,1])
+    self.ph.nx = sqf.nh
+    if qfe == 'qf1pElump':
+      self.A = ly.layerpotDnow(k=k, s=self.ph).dot(np.diag(sqf.wh))
+    else:
+      self.A = ly.layerpotDnow(k=k, s=sqf.zqh, t=sqf.zch).dot(np.diag(sqf.wh))
+    # self.A = ly.layerpotDnow(k=k, s=self.ph).dot(np.diag(sqf.wh))
+    #################################
+    if qfe == 'qf1pElump':
+      self.gh = self.lh_g(self.s.x)
+    elif qfe == 'qf1pE':
+      self.gh = self.lh_g(self.s.x)
+    elif qfe == 'qf2pE':
+      self.gh = self.lh_g(sqf.zch.x)
+    # self.A = self.A.dot(self.W)
+    if qfe == 'qf1pE': # discontinuous
+      self.A = self.A + (self.lh_signb) * 0.5 * (
+        0.5 * np.eye(sqf.n) + 0.5 * np.eye(sqf.n, k=-1) +
+        0.5 * np.eye(sqf.n, k=sqf.n - 1))
+    else:
+      self.A = self.A + (self.lh_signb) * 0.5 * np.eye(sqf.n)
     return
   def lhDirectInitScatt(self, qfe=(), k=0):
     if qfe == ():
@@ -241,6 +326,17 @@ class Mesh2d:
       plt.plot(self.s.t, self.lh_g_c(self.s.x, k=self.k), '+-')
     else:
       plt.plot(self.s.t, self.lh_g_c(self.s.x, s=self.s), '+-')
+    plt.plot(self.s.t, self.sol_b,'+-')
+    plt.show(block=False)
+  def plotH2_sol(self):    
+    # if self.lh_datab == 'n':
+    #   R = self.representN(k=self.k, s=self.s)
+    if self.lh_datab == 'd':
+      R = ly.layerpotDnow(k=self.k, s=self.qf2pE.zqh, t=self.qf2pE.zch).dot(np.diag(self.qf2pE.wh)) + self.lh_signb * 0.5 * np.eye(self.qf2pE.zch.x.size)
+    # if self.lh_datab == 'n':
+    #   self.sol_b = self.sol_b - sum((self.s.w * self.sol_b)) / sum(self.s.w)    
+    self.sol_b = R.dot(self.psi)
+    plt.plot(self.s.t, self.lh_g_c(self.qf2pE.zch.x, s=self.s), '+-')
     plt.plot(self.s.t, self.sol_b,'+-')
     plt.show(block=False)
   def comp_sol_2(self, side=1, t='im'):
