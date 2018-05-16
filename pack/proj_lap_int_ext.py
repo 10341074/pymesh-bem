@@ -15,7 +15,7 @@ import buildmesh as bm
 
 # sFun = data.sOneCircle
 savefig = False
-makeall = False
+makeall = True
 
 def bvp(m, numb = 1):
   ###################### 1 lap, neum, int
@@ -39,6 +39,10 @@ def bvp(m, numb = 1):
   if numb == 5:
     m.lhDirectInit(g = (), g_c = data.g_scatt_inc_plane, gn = data.g_scatt_inc_plane, datab = 'scatt', signb = 1, k=10)
     m.lhDirectSolve()
+  # ###################### 6 scattering (neum) #
+  # if numb == 6:
+  #   m.lhDirectInit(g = data.g_p_scatt_inc_plane, g_c = data.g_scatt_inc_plane, gn = (), datab = 'scattn', signb = 1, k=10)
+  #   m.lhDirectSolve()
   return
 def plot(m):
   m.plot_sol()
@@ -62,12 +66,21 @@ def errorConvergence(numb = 1, sFun=(), name=()):
     m.addQF(qfe='qf1pElump')
     bvp(m, numb=numb)
     m.comp_sol()
-    # err[k] = np.sqrt(sum(m.s.w * (m.sol_b - m.lh_g_c(m.s.x))**2)) #ERROR
+    ############## infinity norm for dir int
+    # mp = refined.normErrInf()
+    # m.mp = mp
+    # m.comp_sol_2()
+    # m.z = m.z
+    # err[k] = max(abs(m.z - m.lh_g(mp.x)))
+    #########
     err[k] = refined.normErr(sFun=sFun, nbig=nbig, nsml=n, g=m.lh_g_c, gh=m.sol_b, sbig=sbig, ssml=m.s)
+
     # m.plot_sol()
     # ret = input("Press")
 
   fig = plot_loglogscale(rng, err)
+  print((np.log(err[1:]) - np.log(err[:-1])) /(np.log(rng[1:]) - np.log(rng[:-1])))
+  #############################
   ax = fig.add_subplot(111)
   pnt = ((rng[-1]), (err[-1]))
   # plt.plot(pnt[0], pnt[1],'kp')
@@ -76,6 +89,16 @@ def errorConvergence(numb = 1, sFun=(), name=()):
   plt.ylabel('log(err)')
   # plt.title('')
   plt.show(block=False)
+  
+  # ax = fig.add_subplot(111)
+  # pnt = ((rng[-1]), (np.log(err[-1])))
+  # # plt.plot(pnt[0], pnt[1],'kp')
+  # ax.annotate('error = %s' % np.float32(err[-1]), xy=pnt , textcoords='data')
+  # plt.xlabel('n')
+  # plt.ylabel('log(err)')
+  # plt.savefig('fig-thesis/convergence_dir_int_ellipse_exponential.eps', bbox_inches='tight')
+  ###################à
+  
   if savefig:
     plt.savefig('fig-thesis/convergence_%s.eps'%name, bbox_inches='tight')
 
@@ -88,11 +111,13 @@ def proj_cf(m):
   m.plot_sol()
   m.plot_sol_2(side=1, t='cf')
   m.s.plot(ms = 0, lw = 0.8, ls = ':')
+  plt.axis('square')
   if savefig:
     plt.savefig('fig-thesis/cf_lap_neum_int_circle.eps', bbox_inches='tight')
   m.z = data.g_l_neum_int(m.mp.x)
   m.plot(side=1, t='cf')
   m.s.plot(ms = 0, lw = 0.8, ls = ':')
+  plt.axis('square')
   if savefig:
     plt.savefig('fig-thesis/cf_lap_neum_int_circle_exact.eps', bbox_inches='tight')
   ##################################
@@ -104,11 +129,13 @@ def proj_cf(m):
   # m.plot_sol()
   m.plot_sol_2(side=-1, t='cf')
   m.s.plot(ms = 0, lw = 0.8, ls = ':')
+  plt.axis('square')
   if savefig:
     plt.savefig('fig-thesis/cf_lap_neum_ext_circle.eps', bbox_inches='tight')
   m.z = data.g_l_neum_ext(m.mp.x)
   m.plot(side= -1, t='cf')
   m.s.plot(ms = 0, lw = 0.8, ls = ':')
+  plt.axis('square')
   if savefig:
     plt.savefig('fig-thesis/cf_lap_neum_ext_circle_exact.eps', bbox_inches='tight')
   return
@@ -125,24 +152,30 @@ def scattering(m):
   
   solz = m.lh_g_c(m.mp.x, k=m.k) # incident
   m.z = np.array(solz.real)
+  # m.z = np.array(solz.imag)
   m.plot(side=-1, t=ty)
   m.s.plot(ms = 0, lw = 0.8, ls = ':')
+  plt.axis('square')
   if savefig:
-    plt.savefig('fig-thesis/scatt_soft_inc_ellipse.eps', bbox_inches='tight')
+    plt.savefig('fig-thesis/scatt_soft_inc_ellipse_%s.eps'%m.k, bbox_inches='tight')
 
   solz = solz_scatt # scattered
   m.z = np.array(solz.real)
+  # m.z = np.array(solz.imag)
   m.plot_sol_2(side=-1, t=ty, comp=False)
   m.s.plot(ms = 0, lw = 0.8, ls = ':')
+  plt.axis('square')
   if savefig:
-    plt.savefig('fig-thesis/scatt_soft_scatt_ellipse.eps', bbox_inches='tight')
+    plt.savefig('fig-thesis/scatt_soft_scatt_ellipse_%s.eps'%m.k, bbox_inches='tight')
 
   solz = solz + m.lh_g_c(m.mp.x, k=m.k) # total
   m.z = np.array(solz.real)
+  # m.z = np.array(solz.imag)
   m.plot_sol_2(side=-1, t=ty, comp=False)
   m.s.plot(ms = 0, lw = 0.8, ls = ':')
+  plt.axis('square')
   if savefig:
-    plt.savefig('fig-thesis/scatt_soft_tot_ellipse.eps', bbox_inches='tight')
+    plt.savefig('fig-thesis/scatt_soft_tot_ellipse_%s.eps'%m.k, bbox_inches='tight')
 
 if __name__ == "__main__":
   m = bm.Mesh2d()
@@ -181,14 +214,21 @@ if __name__ == "__main__":
     m = bm.Mesh2d()
     errorConvergence(numb=1, sFun=data.sOneCircle, name="lap_neum_int_circle")
     errorConvergence(numb=2, sFun=data.sOneCircle, name="lap_neum_ext_circle")
+
     m = bm.Mesh2d("one_ellipse_2_1")
+
     # m = bm.Mesh2d()
     # m.addQF()
+    
     errorConvergence(numb=1, sFun=data.sOneEllipse, name="lap_neum_int_ellipse")
     errorConvergence(numb=2, sFun=data.sOneEllipse, name="lap_neum_ext_ellipse")
     m = bm.Mesh2d("one_ellipse_2_1")
+
     errorConvergence(numb=3, sFun=data.sOneEllipse, name="lap_dir_int_ellipse")
     errorConvergence(numb=4, sFun=data.sOneEllipse, name="lap_dir_ext_ellipse")
-  scattering(m)
-  
+    scattering(m)
+
+    
+  # m = bm.Mesh2d("one_ellipse_2_1")
+  # errorConvergence(numb=3, sFun=data.sOneEllipse, name="lap_dir_int_ellipse")
   ret = input("Press")

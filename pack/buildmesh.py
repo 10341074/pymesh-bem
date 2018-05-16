@@ -174,7 +174,7 @@ class Mesh2d:
     self.mesh = pymesh.form_mesh(np.concatenate(( [self.xh], [self.yh] )).T, self.fh)
     self.bzh = np.array([[self.xh[k], self.yh[k]] for k in self.indb])
     return
-  def addQF(self, fespace = 'P1', qfe = 'qf1pElump', qft = 'qf1pT'):
+  def addQF(self, fespace='P1', qfe = 'qf1pElump', qft = 'qf1pT'):
     if qfe == 'qf1pE':
       self.qf1pE = QF(self, 'qf1pE')
     elif qfe == 'qf1pElump':
@@ -182,6 +182,9 @@ class Mesh2d:
     elif qfe == 'qf2pE':
       self.qf2pE = QF(self, 'qf2pE')
     return
+  def reinitFromSeg(self):
+    self.xh, self.yh, self.eh, self.fh, self.indb = np.array(self.s.x.real), np.array(self.s.x.imag), (), (), np.arange(self.s.n)
+  #########################################################################################################
   def lhDirectInit(self, g=g_p_cube, g_c = g_cube, gn = (), signb = -1, datab = 'n', build=True, qfe=(), k=0):
     self.lh_g, self.lh_g_c, self.lh_gn, self.lh_signb, self.lh_datab, self.k = g, g_c, gn, signb, datab, k
     if build and datab == 'n':
@@ -196,33 +199,28 @@ class Mesh2d:
     # A kernel = layerpot = M * N
     # gh = M
     # W weights integration = N * M
-    ########################################################
     if qfe == ():
       qfe = 'qf1pElump' # allows to pass () and set as default
     if qfe == 'qf1pElump':
       sqf = self.qf1pElump
-    elif qfe == 'qf1pE':
-      sqf = self.qf1pE
+    # elif qfe == 'qf1pE':
+    #   sqf = self.qf1pE
     #####################
     if qfe == 'qf1pElump':
-      # slf = True
       self.A = ly.layerpotSD(k=k, s=sqf)
-      # self.A = ly.layerpotSD(k=k, s=self.s.x)
-    else:
-      # slf = False
-      self.A = ly.layerpotSD(k=k, s=sqf, t=self.s)
-      # self.A = ly.layerpotSD(k=k, s=self.s.x, t=qfe.x)
+    # else:
+    #   self.A = ly.layerpotSD(k=k, s=sqf, t=self.s)
     #######################
-    if qfe == 'qf1pElump':
-      self.W = np.eye(sqf.n)
-    if qfe == 'qf1pE':
-      self.W = 0.5 * np.eye(self.s.n) + 0.5 * np.eye(self.s.n, k=1) + 0.5 * np.eye(self.s.n, k=self.s.n - 1)
+    # if qfe == 'qf1pElump':
+    #   self.W = np.eye(sqf.n)
+    # if qfe == 'qf1pE':
+    #   self.W = 0.5 * np.eye(self.s.n) + 0.5 * np.eye(self.s.n, k=1) + 0.5 * np.eye(self.s.n, k=self.s.n - 1)
     ##################### gh
     if self.lh_gn == ():
       self.gh = ly.scalar(self.lh_g(self.s.x), self.s.nx)
     else:
       self.gh = self.lh_gn(self.s.x)
-    self.A = self.A.dot(self.W)
+    # self.A = self.A.dot(self.W)
     self.A = self.A + (-self.lh_signb) * 0.5 * np.eye(sqf.n)
     return
   def lhDirectInitD(self, qfe=(), k=0):
@@ -232,12 +230,8 @@ class Mesh2d:
       sqf = self.qf1pElump
     ################################
     if qfe == 'qf1pElump':
-      # self.A = ly.layerpotD_L1L2(k=k, s=sqf, derivSLP=False)
       self.A = ly.layerpotD(k=k, s=sqf)
     #################################
-    # if self.lh_gn == ():
-    #   self.gh = ly.scalar(self.lh_g(self.s.x), self.s.nx)
-    # else:
     self.gh = self.lh_g(self.s.x)
     # self.A = self.A.dot(self.W)
     self.A = self.A + (self.lh_signb) * 0.5 * np.eye(sqf.n)
@@ -257,6 +251,7 @@ class Mesh2d:
     elif qfe == 'qf2pE':
       sqf = self.qf2pE
     ################################
+    # qf1pElump needs SLF in layerpotD
     self.ph = sg.Pointset(sqf.zh[:,0] + 1j * sqf.zh[:,1])
     self.ph.nx = sqf.nh
     if qfe == 'qf1pElump':
@@ -286,11 +281,8 @@ class Mesh2d:
       sqf = self.qf1pElump
     # self.A = ly.layerpotD_L1L2(k=k, s=sqf, derivSLP=False)
     self.A = ly.layerpotD_L1L2(k=k, s=sqf) - 1j * ly.layerpotS_M1M2(k=k, s=sqf)
-    if self.lh_gn == ():
-      self.gh = - ly.scalar(self.lh_g(self.s.x), self.s.nx)
-    else:
-      print('used gn', k)
-      self.gh = - self.lh_gn(self.s.x, k=k)
+    print('used gn', k)
+    self.gh = - self.lh_gn(self.s.x, k=k)
     # self.A = self.A.dot(self.W)
     self.A = self.A + (self.lh_signb) * 0.5 * np.eye(sqf.n)
     return
@@ -302,11 +294,13 @@ class Mesh2d:
     return ly.layerpotD_L1L2(k=k, s=s, t=t) - 1j * ly.layerpotS_M1M2(k=k, s=s, t=t)
   def lhDirectSolve(self):
     if (self.lh_datab == 'n' and self.lh_signb == -1) or (self.lh_datab == 'd' and self.lh_signb == 1):
-      self.psi = dls.linsys_0(self.A, self.gh)
+      self.psi = linalg.lstsq(self.A, self.gh)[0]
+      # self.psi = dls.linsys_0(self.A, self.gh)
       # self.psi = linalg.solve(self.A, self.gh)
     else:
+      self.psi = linalg.lstsq(self.A, self.gh)[0]
+      # self.psi = dls.linsys_0(self.A, self.gh)
       # self.psi = linalg.solve(self.A, self.gh) 
-      self.psi = dls.linsys_0(self.A, self.gh)
   def comp_sol(self):
     if self.lh_datab == 'n':
       R = self.representN(k=self.k, s=self.s)
@@ -319,6 +313,10 @@ class Mesh2d:
     # zero mean
     if self.lh_datab == 'n':
       self.sol_b = self.sol_b - sum((self.s.w * self.sol_b)) / sum(self.s.w)
+  def comp_mean(self):
+    R = self.representN(k=self.k, s=self.s)
+    sol_b = R.dot(self.psi)
+    return sum((self.s.w * sol_b)) / sum(self.s.w)
   def plot_sol(self, comp=True):
     if comp:
       self.comp_sol()
@@ -328,17 +326,17 @@ class Mesh2d:
       plt.plot(self.s.t, self.lh_g_c(self.s.x, s=self.s), '+-')
     plt.plot(self.s.t, self.sol_b,'+-')
     plt.show(block=False)
-  def plotH2_sol(self):    
-    # if self.lh_datab == 'n':
-    #   R = self.representN(k=self.k, s=self.s)
-    if self.lh_datab == 'd':
-      R = ly.layerpotDnow(k=self.k, s=self.qf2pE.zqh, t=self.qf2pE.zch).dot(np.diag(self.qf2pE.wh)) + self.lh_signb * 0.5 * np.eye(self.qf2pE.zch.x.size)
-    # if self.lh_datab == 'n':
-    #   self.sol_b = self.sol_b - sum((self.s.w * self.sol_b)) / sum(self.s.w)    
-    self.sol_b = R.dot(self.psi)
-    plt.plot(self.s.t, self.lh_g_c(self.qf2pE.zch.x, s=self.s), '+-')
-    plt.plot(self.s.t, self.sol_b,'+-')
-    plt.show(block=False)
+  # def plotH2_sol(self):    
+  #   # if self.lh_datab == 'n':
+  #   #   R = self.representN(k=self.k, s=self.s)
+  #   if self.lh_datab == 'd':
+  #     R = ly.layerpotDnow(k=self.k, s=self.qf2pE.zqh, t=self.qf2pE.zch).dot(np.diag(self.qf2pE.wh)) + self.lh_signb * 0.5 * np.eye(self.qf2pE.zch.x.size)
+  #   # if self.lh_datab == 'n':
+  #   #   self.sol_b = self.sol_b - sum((self.s.w * self.sol_b)) / sum(self.s.w)    
+  #   self.sol_b = R.dot(self.psi)
+  #   plt.plot(self.s.t, self.lh_g_c(self.qf2pE.zch.x, s=self.s), '+-')
+  #   plt.plot(self.s.t, self.sol_b,'+-')
+  #   plt.show(block=False)
   def comp_sol_2(self, side=1, t='im'):
     if self.lh_datab == 'n':
       R = self.representN(k=self.k, s=self.s, t=self.mp)
@@ -347,10 +345,13 @@ class Mesh2d:
     if self.lh_datab == 'scatt':
       R = self.representScatt(k=self.k, s=self.s, t=self.mp)
     self.z = R.dot(self.psi)
+    if self.lh_datab == 'n':
+      self.z = self.z - self.comp_mean()
   def plot_sol_2(self, side=1, t='im', comp=True):
     if comp:
       self.comp_sol_2(side, t)
-    self.plot(side=side, t=t)
+    fig = self.plot(side=side, t=t)
+    return fig
     
   ##############################################################
   def meshgrid(self, args=(-3, 3, 80), args_y=((), (), ())):
@@ -379,6 +380,7 @@ class Mesh2d:
     fig = plot.plot(self.mx, self.my, z, t)
     # self.plot_domain()
     plt.show(block=False)
+    return fig
 
 def fast():
   m = Mesh2d("one_ellipse_2_1")

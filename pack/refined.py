@@ -36,3 +36,8 @@ def normErr(sFun, nbig, nsml, g, gh, sbig=(), ssml=()):
   A = elem_deg1(ssml, sbig)
   err = np.sqrt(sum(sbig.w * (g(sbig.x) - A.dot(gh))**2))
   return err
+
+def normErrInf():
+  xh = np.loadtxt('out/mesh_one_ellipse_reduced1_0_300_xh_tot.txt')
+  yh = np.loadtxt('out/mesh_one_ellipse_reduced1_0_300_yh_tot.txt')
+  return sg.Pointset(xh + 1j * yh)

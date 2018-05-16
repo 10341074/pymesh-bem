@@ -56,3 +56,7 @@ def g_scatt_inc_plane(z, k):
   x, y = z.real, z.imag
   a = np.pi/4
   return np.exp(-1j * k *(np.cos(a) * x + np.sin(a) * y))
+def g_p_scatt_inc_plane(z, k):
+  x, y = z.real, z.imag
+  a = np.pi/4
+  return (-1j * k * np.cos(a) + 1j * (-1j) * k * np.sin(a)) * np.exp(-1j * k *(np.cos(a) * x + np.sin(a) * y))

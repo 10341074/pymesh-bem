@@ -286,12 +286,12 @@ def layerpotD_L1L2(k=0, s=(), t=(), o=(), derivSLP=False):
     A = A.dot(np.diag(s.w))
   return A
 
-# def layerpotDD(k=0, s=[], t=[], o=[]):
+# def layerpotDD(k=0, s=(), t=(), o=()):
 #   slf = 0
-#   if t == []:
+#   if t == ():
 #     slf = 1
 #     t = s
-#     print('Warning: layerpotDD self not implemented')
+#     print('WARNING: layerpotDD self not implemented')
 #   M = len(t.x)
 #   N = len(s.x)
   
